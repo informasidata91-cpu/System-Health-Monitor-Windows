@@ -1,6 +1,6 @@
 <# 
-  HealthGuard.ps1 
-  PS 5.1+ compatible. Encoding UTF-8.
+  HealthGuard.ps1
+  Output: %USERPROFILE%\Desktop\SystemHealthReport.html
 #>
 
 [CmdletBinding()]
@@ -10,9 +10,11 @@ param(
   [int]$TopN = 5
 )
 
+# ---------------- Paths ----------------
 $desk = Join-Path $env:USERPROFILE "Desktop"
-$html = Join-Path $desk "SystemHealthReport.html"
+$outHtml = Join-Path $desk "SystemHealthReport.html"
 
+# ---------------- Helpers ----------------
 function StatusScore($s){
   switch($s){
     "Baik"   { 2 }
@@ -21,7 +23,6 @@ function StatusScore($s){
     default  { 1 }
   }
 }
-
 function StatusClass($s){
   switch($s){
     "Baik"   { "ok" }
@@ -30,8 +31,12 @@ function StatusClass($s){
     default  { "na" }
   }
 }
+function SafeNum($v, $fallback=0){
+  if ($null -eq $v) { return $fallback } 
+  try { return [double]$v } catch { return $fallback }
+}
 
-# ---------- Collect metrics ----------
+# ---------------- Collect Metrics ----------------
 $items = @()
 
 # CPU
@@ -39,7 +44,10 @@ try{
   $cpu = Get-Counter '\Processor(_Total)\% Processor Time'
   $cpuUsage = [math]::Round($cpu.CounterSamples.CookedValue,1)
 }catch{ $cpuUsage = -1 }
-if ($cpuUsage -ge 0 -and $cpuUsage -lt 70){$cpuStatus="Baik"} elseif($cpuUsage -lt 90){$cpuStatus="Sedang"} elseif($cpuUsage -ge 0){$cpuStatus="Buruk"} else{$cpuStatus="N/A"}
+if ($cpuUsage -ge 0 -and $cpuUsage -lt 70){$cpuStatus="Baik"}
+elseif ($cpuUsage -ge 70 -and $cpuUsage -lt 90){$cpuStatus="Sedang"}
+elseif ($cpuUsage -ge 0){$cpuStatus="Buruk"}
+else {$cpuStatus="N/A"}
 $items += [pscustomobject]@{Komponen="CPU"; Nilai="$cpuUsage %"; Status=$cpuStatus; Keterangan="Rata-rata total"}
 
 # RAM
@@ -47,7 +55,7 @@ try{
   $os = Get-CimInstance Win32_OperatingSystem
   $totalGB = [math]::Round($os.TotalVisibleMemorySize / 1MB,1)
   $usedGB  = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory)/1MB,1)
-  $ramPct  = if($totalGB -gt 0){ [math]::Round(($usedGB/$totalGB)*100,1) } else { 0 }
+  $ramPct  = if ($totalGB -gt 0) { [math]::Round(($usedGB/$totalGB)*100,1) } else { 0 }
   if ($ramPct -lt 75){$ramStatus="Baik"} elseif($ramPct -lt 90){$ramStatus="Sedang"} else{$ramStatus="Buruk"}
   $items += [pscustomobject]@{Komponen="RAM"; Nilai="$usedGB GB / $totalGB GB ($ramPct %)"; Status=$ramStatus; Keterangan="Pemakaian fisik"}
 }catch{
@@ -60,7 +68,7 @@ try{
   $d = Get-PSDrive -Name $Drive -ErrorAction Stop
   if ($d.Maximum -gt 0){ $diskUsedPercent = [math]::Round(($d.Used/$d.Maximum)*100,1) }
 }catch{}
-if (-not $diskUsedPercent){
+if ($null -eq $diskUsedPercent){
   try{
     $ld = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($Drive):'"
     if ($ld -and $ld.Size -gt 0){ $diskUsedPercent = [math]::Round((($ld.Size-$ld.FreeSpace)/$ld.Size)*100,1) }
@@ -84,7 +92,7 @@ try{
   $items += [pscustomobject]@{Komponen="Uptime"; Nilai="N/A"; Status="Sedang"; Keterangan="Tidak tersedia"}
 }
 
-# Temp
+# Temperature
 try{
   $t = Get-WmiObject -Namespace "root/wmi" -Class MSAcpi_ThermalZoneTemperature -ErrorAction Stop
   if ($t -and $t.CurrentTemperature){
@@ -99,15 +107,19 @@ try{
 }
 
 # Internet
-try{ $pingOk = Test-Connection -ComputerName $TargetHost -Count 2 -Quiet -ErrorAction Stop }catch{ $pingOk=$false }
-$netStatus = if($pingOk){"Baik"} else {"Buruk"}
-$netText   = if($pingOk){"Aktif"} else {"Tidak terhubung"}
+try{
+  $pingOk = Test-Connection -ComputerName $TargetHost -Count 2 -Quiet -ErrorAction Stop
+}catch{ $pingOk = $false }
+$netStatus = if ($pingOk) { "Baik" } else { "Buruk" }
+$netText   = if ($pingOk) { "Aktif" } else { "Tidak terhubung" }
 $items += [pscustomobject]@{Komponen="Internet"; Nilai=$netText; Status=$netStatus; Keterangan=$TargetHost}
 
 # Firewall
-try{ $fwEnabled = (Get-NetFirewallProfile | Where-Object Enabled).Count -gt 0 }catch{ $fwEnabled=$false }
-$fwStatus = if($fwEnabled){"Baik"} else {"Buruk"}
-$fwText   = if($fwEnabled){"Aktif"} else {"Nonaktif"}
+try{
+  $fwEnabled = (Get-NetFirewallProfile | Where-Object Enabled).Count -gt 0
+}catch{ $fwEnabled = $false }
+$fwStatus = if ($fwEnabled) { "Baik" } else { "Buruk" }
+$fwText   = if ($fwEnabled) { "Aktif" } else { "Nonaktif" }
 $items += [pscustomobject]@{Komponen="Firewall"; Nilai=$fwText; Status=$fwStatus; Keterangan="Windows Firewall"}
 
 # Update
@@ -124,58 +136,39 @@ try{
   $items += [pscustomobject]@{Komponen="Win Update"; Nilai="N/A"; Status="Sedang"; Keterangan="Tidak tersedia"}
 }
 
-# Top processes
+# Top Processes (PS 5.1 safe)
 $top = @()
-try{
- $top = @()
 try{
   $top = Get-Process | Sort-Object CPU -Descending | Select-Object -First $TopN |
     ForEach-Object {
       $cpuTime = if ($null -ne $_.CPU) { [double]$_.CPU } else { 0 }
-      [pscustomobject]@{ Process = $_.ProcessName; CPUSeconds = [math]::Round($cpuTime, 2) }
+      [pscustomobject]@{ Process = $_.ProcessName; CPUSeconds = [math]::Round($cpuTime,2) }
     }
-}catch{}
 }catch{}
 
 # Score
-$score = ($items | ForEach-Object { StatusScore $_.Status }) | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+$score = 0
+foreach($i in $items){ $score += StatusScore $i.Status }
 $avg = [math]::Round(($score / ($items.Count*2))*100,1)
-$final = if($avg -ge 80){"BAIK"} elseif($avg -ge 50){"SEDANG"} else{"BURUK"}
+if ($avg -ge 80){$final="BAIK"} elseif($avg -ge 50){$final="SEDANG"} else{$final="BURUK"}
 
-# ---------- Build HTML ----------
+# ---------------- Build HTML ----------------
 $style = @"
 <style>
-body{font-family:Segoe UI,Arial,Helvetica,sans-serif;margin:24px;color:#222;background:#fafafa}
-h1{margin:0} .muted{color:#666}
+body{font-family:Segoe UI,Arial,Helvetica,sans-serif;margin:24px;background:#fafafa;color:#222}
 .wrap{max-width:1000px;margin:auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .header{padding:20px 24px;border-bottom:1px solid #eee}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.kpi{padding:12px 16px;border-radius:6px;background:#f6f8fa;border:1px solid #e5e7eb}
+.muted{color:#666}
+.kpi-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.kpi{padding:12px 16px;border:1px solid #e5e7eb;border-radius:6px;background:#f6f8fa}
 .kpi strong{font-size:20px}
-.table{width:100%;border-collapse:collapse;margin-top:8px}
+.table{width:100%;border-collapse:collapse;margin-top:16px}
 .table th,.table td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;font-variant-numeric:tabular-nums}
-.bad{color:#a40000;font-weight:600}
-.ok{color:#0b7a00;font-weight:600}
-.warn{color:#a15c00;font-weight:600}
-.na{color:#555}
-.footer{padding:16px 24px;border-top:1px solid #eee;color:#666;font-size:12px}
 .badge{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-size:12px}
-.badge.ok{background:#16a34a} .badge.warn{background:#f59e0b} .badge.bad{background:#dc2626}
+.badge.ok{background:#16a34a} .badge.warn{background:#f59e0b} .badge.bad{background:#dc2626} .badge.na{background:#64748b}
+.footer{padding:16px 24px;border-top:1px solid #eee;color:#666;font-size:12px}
 .summary{padding:16px 24px;border-top:1px dashed #ddd}
 </style>
-"@
-
-$scriptSort = @"
-<script>
-function sortTable(id,col){
-  const t=document.getElementById(id);const rows=[...t.tBodies[0].rows];
-  const asc = t.getAttribute('data-sort')!=='asc';
-  rows.sort((a,b)=>a.cells[col].innerText.localeCompare(b.cells[col].innerText,undefined,{numeric:true}));
-  if(!asc) rows.reverse();
-  rows.forEach(r=>t.tBodies[0].appendChild(r));
-  t.setAttribute('data-sort', asc?'asc':'desc');
-}
-</script>
 "@
 
 $rowsHtml = ($items | ForEach-Object {
@@ -184,7 +177,7 @@ $rowsHtml = ($items | ForEach-Object {
 
 $procHtml = if($top.Count -gt 0){
   ($top | ForEach-Object { "<tr><td>$($_.Process)</td><td style='text-align:right'>$($_.CPUSeconds)</td></tr>" }) -join "`n"
-}else{ "<tr><td colspan='2'>Tidak dapat membaca proses</td></tr>" }
+} else { "<tr><td colspan='2'>Tidak dapat membaca proses</td></tr>" }
 
 $htmlDoc = @"
 <!DOCTYPE html>
@@ -192,27 +185,19 @@ $htmlDoc = @"
 <meta charset="utf-8">
 <title>System Health Report - Data Informasi</title>
 $style
-$scriptSort
 <body>
 <div class="wrap">
   <div class="header">
     <h1>System Health Report – Data Informasi</h1>
     <div class="muted">Tanggal: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</div>
-    <div class="grid" style="margin-top:12px">
+    <div class="kpi-wrap">
       <div class="kpi"><div>Overall Score</div><strong>$avg %</strong></div>
-      <div class="kpi"><div>Kondisi</div><strong class="$(StatusClass $final.ToLower())">$final</strong></div>
+      <div class="kpi"><div>Kondisi</div><strong>$final</strong></div>
     </div>
   </div>
   <div style="padding:0 24px 16px">
-    <table class="table" id="tbl-main" data-sort="asc">
-      <thead>
-        <tr>
-          <th onclick="sortTable('tbl-main',0)">Komponen</th>
-          <th onclick="sortTable('tbl-main',1)">Nilai</th>
-          <th onclick="sortTable('tbl-main',2)">Status</th>
-          <th onclick="sortTable('tbl-main',3)">Keterangan</th>
-        </tr>
-      </thead>
+    <table class="table">
+      <thead><tr><th>Komponen</th><th>Nilai</th><th>Status</th><th>Keterangan</th></tr></thead>
       <tbody>
         $rowsHtml
       </tbody>
@@ -221,19 +206,19 @@ $scriptSort
     <div class="summary">
       <strong>Rekomendasi:</strong>
       <ul>
-        $(if(($items|?{$_.Komponen -like 'Disk*'}).Status -eq 'Buruk'){"<li>Bersihkan drive: hapus file sementara, uninstall aplikasi tidak perlu.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'RAM'}).Status -eq 'Buruk'){"<li>Tutup aplikasi berat atau tingkatkan kapasitas RAM.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'CPU'}).Status -eq 'Buruk'){"<li>Identifikasi proses konsumtif dan kelola startup.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'CPU Temp'}).Status -eq 'Buruk'){"<li>Periksa pendingin, bersihkan debu, ganti thermal paste.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'Win Update'}).Status -eq 'Buruk'){"<li>Segera jalankan Windows Update.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'Internet'}).Status -eq 'Buruk'){"<li>Periksa koneksi jaringan atau DNS.</li>"}else{""})
-        $(if(($items|?{$_.Komponen -eq 'Firewall'}).Status -eq 'Buruk'){"<li>Aktifkan Windows Firewall atau kebijakan keamanan setempat.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -like 'Disk*'}).Status -eq 'Buruk'){"<li>Bersihkan drive: hapus file sementara, uninstall aplikasi tidak perlu.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'RAM'}).Status -eq 'Buruk'){"<li>Tutup aplikasi berat atau tingkatkan RAM.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'CPU'}).Status -eq 'Buruk'){"<li>Identifikasi proses konsumtif dan kelola startup.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'CPU Temp'}).Status -eq 'Buruk'){"<li>Periksa pendingin, bersihkan debu, ganti thermal paste.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'Win Update'}).Status -eq 'Buruk'){"<li>Segera jalankan Windows Update.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'Internet'}).Status -eq 'Buruk'){"<li>Periksa koneksi/driver jaringan atau DNS.</li>"}else{""})
+        $(if(($items|Where-Object {$_.Komponen -eq 'Firewall'}).Status -eq 'Buruk'){"<li>Aktifkan Windows Firewall atau kebijakan keamanan setempat.</li>"}else{""})
       </ul>
     </div>
 
-    <h3 style="padding:16px 24px 0">Top Proses (CPU time)</h3>
-    <table class="table" style="margin:0 24px 24px" id="tbl-proc">
-      <thead><tr><th onclick="sortTable('tbl-proc',0)">Proses</th><th onclick="sortTable('tbl-proc',1)" style="text-align:right">Detik</th></tr></thead>
+    <h3>Top Proses (CPU time)</h3>
+    <table class="table">
+      <thead><tr><th>Proses</th><th style='text-align:right'>Detik</th></tr></thead>
       <tbody>$procHtml</tbody>
     </table>
   </div>
@@ -245,8 +230,8 @@ $scriptSort
 </html>
 "@
 
-# Save HTML (UTF-8)
-$htmlDoc | Out-File -FilePath $html -Encoding utf8
+# ---------------- Save ----------------
+$htmlDoc | Out-File -FilePath $outHtml -Encoding utf8
 
-Write-Host "Selesai. HTML report tersimpan:"
-Write-Host " - $html"
+Write-Host "Selesai. HTML report:"
+Write-Host " - $outHtml"

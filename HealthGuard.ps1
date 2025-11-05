@@ -127,8 +127,14 @@ try{
 # Top processes
 $top = @()
 try{
+ $top = @()
+try{
   $top = Get-Process | Sort-Object CPU -Descending | Select-Object -First $TopN |
-    ForEach-Object { [pscustomobject]@{Process=$_.ProcessName; CPUSeconds=[math]::Round(($_.CPU ?? 0),2)} }
+    ForEach-Object {
+      $cpuTime = if ($null -ne $_.CPU) { [double]$_.CPU } else { 0 }
+      [pscustomobject]@{ Process = $_.ProcessName; CPUSeconds = [math]::Round($cpuTime, 2) }
+    }
+}catch{}
 }catch{}
 
 # Score

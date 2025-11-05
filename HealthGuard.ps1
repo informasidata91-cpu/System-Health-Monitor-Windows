@@ -183,12 +183,12 @@ $htmlDoc = @"
 <!DOCTYPE html>
 <html lang="id">
 <meta charset="utf-8">
-<title>System Health Report - Data Informasi</title>
+<title>System Health Report Data Informasi™</title>
 $style
 <body>
 <div class="wrap">
   <div class="header">
-    <h1>System Health Report – Data Informasi</h1>
+    <h1>System Health Report Data Informasi™</h1>
     <div class="muted">Tanggal: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</div>
     <div class="kpi-wrap">
       <div class="kpi"><div>Overall Score</div><strong>$avg %</strong></div>
@@ -223,7 +223,7 @@ $style
     </table>
   </div>
   <div class="footer">
-    (c) Data Informasi – Pemeriksaan Sistem Otomatis • Target host: $TargetHost • Drive: $Drive
+    (c) Data Informasi™. Pemeriksaan Sistem Otomatis. Target host: $TargetHost. Drive: $Drive
   </div>
 </div>
 </body>

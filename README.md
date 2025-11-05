@@ -22,7 +22,7 @@ Monitor kesehatan Windows secara cepat: CPU, RAM, Disk, Suhu CPU, Uptime, Intern
 
 ## Instalasi
 
-1. Salin skrip ke file: SystemHealth.ps1
+1. Salin skrip ke file: HealtGuard.ps1
 2. Buka PowerShell sebagai Administrator (disarankan).
 3. Opsional: set kebijakan eksekusi sementara
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -31,7 +31,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 Jalankan dari folder skrip:
 ```
-.\SystemHealth.ps1
+.\HealtGuard.ps1
 ```
 
 Output:

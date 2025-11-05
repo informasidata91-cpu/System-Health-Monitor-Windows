@@ -31,7 +31,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 Jalankan dari folder skrip:
 ```
-.\HealtGuard.ps1
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\HealtGuard.ps1
 ```
 
 Output:

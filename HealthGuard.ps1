@@ -1,6 +1,6 @@
 <# 
   HealthGuard.ps1
-  System Health Monitor – Data Informasi v3.0 (ASCII-safe)
+  System Health Monitor – Data Informasi v1.0.0.0
   Output: %USERPROFILE%\Desktop\SystemHealthReport.txt
 #>
 

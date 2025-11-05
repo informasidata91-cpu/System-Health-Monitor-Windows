@@ -1,7 +1,7 @@
 <#
 ────────────────────────────────────────────
-🩺  System Health Monitor – Data Informasi™ v3.0
-📅  Versi: 3.0
+🩺  System Health Monitor – Data Informasi™ v1.0.0.0
+📅  Versi: 1.0.0.0
 🧩  Pemeriksaan:
      - CPU, RAM, Disk, Suhu CPU
      - Uptime, Internet, Firewall, Update

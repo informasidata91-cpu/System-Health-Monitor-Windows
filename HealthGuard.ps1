@@ -5,7 +5,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$TargetHost = "google.com",
+  [string]$TargetHost = "8.8.8.8",
   [string]$Drive = "C",
   [int]$TopN = 5
 )
@@ -106,13 +106,33 @@ try{
   $items += [pscustomobject]@{Komponen="CPU Temp"; Nilai="N/A"; Status="Baik"; Keterangan="Sensor tidak tersedia"}
 }
 
-# Internet
-try{
-  $pingOk = Test-Connection -ComputerName $TargetHost -Count 2 -Quiet -ErrorAction Stop
-}catch{ $pingOk = $false }
+# ---------------- Internet ----------------
+$target = "8.8.8.8"
+$pingOk = $false
+$avgMs  = ""
+
+try {
+  # PowerShell 5.1: Test-Connection cmdlet klasik
+  $p = Test-Connection -ComputerName $target -Count 3 -ErrorAction Stop
+  $avgMs = [math]::Round(($p | Measure-Object -Property ResponseTime -Average).Average, 1)
+  $pingOk = $true
+} catch {
+  # Quiet fallback (beberapa lingkungan butuh -Quiet)
+  try {
+    $pingOk = Test-Connection -ComputerName $target -Count 2 -Quiet
+  } catch { $pingOk = $false }
+}
+
 $netStatus = if ($pingOk) { "Baik" } else { "Buruk" }
 $netText   = if ($pingOk) { "Aktif" } else { "Tidak terhubung" }
-$items += [pscustomobject]@{Komponen="Internet"; Nilai=$netText; Status=$netStatus; Keterangan=$TargetHost}
+$ket       = if ($pingOk) { "$target; rtt~$avgMs ms" } else { "$target; ping=fail" }
+
+$items += [pscustomobject]@{
+  Komponen   = "Internet"
+  Nilai      = $netText
+  Status     = $netStatus
+  Keterangan = $ket
+}
 
 # Firewall
 try{
@@ -182,13 +202,15 @@ $procHtml = if($top.Count -gt 0){
 $htmlDoc = @"
 <!DOCTYPE html>
 <html lang="id">
-<meta charset="utf-8">
-<title>System Health Report Data Informasi™</title>
+<head>
+<meta charset="UTF-8">
+<title>System Health Report - Data Informasi&trade;</title>
 $style
+</head>
 <body>
 <div class="wrap">
   <div class="header">
-    <h1>System Health Report Data Informasi™</h1>
+    <h1>System Health Report - Data Informasi&trade;</h1>
     <div class="muted">Tanggal: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</div>
     <div class="kpi-wrap">
       <div class="kpi"><div>Overall Score</div><strong>$avg %</strong></div>
@@ -223,7 +245,7 @@ $style
     </table>
   </div>
   <div class="footer">
-    (c) Data Informasi™. Pemeriksaan Sistem Otomatis. Target host: $TargetHost. Drive: $Drive
+    (c) Data Informasi&trade; &bullet; Pemeriksaan Sistem Otomatis &bullet; Target host: $TargetHost &bullet; Drive: $Drive
   </div>
 </div>
 </body>

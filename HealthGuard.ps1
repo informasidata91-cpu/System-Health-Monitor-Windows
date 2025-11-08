@@ -337,7 +337,7 @@ if ($avg -ge 80){$final="BAIK"} elseif($avg -ge 50){$final="SEDANG"} else{$final
 $maint = Invoke-MaintenanceIfNeeded -ExePath $MaintenanceExePath -DownloadUrl $MaintenanceDownloadUrl -Strict:$StrictMaintenance -AutoRun:$AutoRunMaintenance
 $maintStatus = if ($maint.ShouldRun) { 'Needed' } else { 'Not Needed' }
 $maintClass  = if ($maint.ShouldRun) { 'warn' } else { 'ok' }
-$maintReasons = if ($maint.Reasons.Count) { ($maint.Reasons -join '; ') } else { '—' }
+$maintReasons = if ($maint.Reasons.Count) { ($maint.Reasons -join '; ') } else { '--' }
 $downloadLink = $maint.DownloadUrl
 $localExists = Test-Path -LiteralPath $maint.ExePath
 $localPathEsc = ($maint.ExePath -replace '\\','/')
@@ -396,15 +396,15 @@ $style
     <h1>System Health Report - Data Informasi&trade;</h1>
     <div class="muted">Tanggal: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</div>
     <div class="kpi-wrap">
-      <div class="kpi"><div>Overall Score</div><strong>$avg %</strong></div>
+      <div class="kpi"><div>Skor Keseluruhan</div><strong>$avg %</strong></div>
       <div class="kpi"><div>Kondisi</div><strong>$final</strong></div>
     </div>
   </div>
   <div style="padding:0 24px 16px">
     <div class="maint">
-      <strong>Maintenance Readiness:</strong>
+      <strong>Kesiapan Pemeliharaan:</strong>
       <div>Status: <span class="badge $maintClass">$maintStatus</span></div>
-      <div>Reasons: $maintReasons</div>
+      <div>Alasan: $maintReasons</div>
       <div>Lokasi Lokal: $($maint.ExePath)</div>
       <div>$maintButtonsHtml</div>
     </div>
@@ -429,14 +429,14 @@ $style
       </ul>
     </div>
 
-    <h3>Top Proses (CPU time)</h3>
+    <h3>Proses Teratas (Waktu CPU)</h3>
     <table class="table">
       <thead><tr><th>Proses</th><th style='text-align:right'>Detik</th></tr></thead>
       <tbody>$procHtml</tbody>
     </table>
   </div>
   <div class="footer">
-    (c) Data Informasi&trade; • Pemeriksaan Sistem Otomatis • Target host: $TargetHost • Drive: $Drive
+    (c) Data Informasi&trade; - Pemeriksaan Sistem Otomatis - Target host: $TargetHost - Drive: $Drive
   </div>
 </div>
 </body>

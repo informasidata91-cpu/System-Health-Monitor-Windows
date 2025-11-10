@@ -1,4 +1,4 @@
-# System Health Monitor – Data Informasi v1.0.0.0
+# System Health Monitor 
 
 Monitor kesehatan Windows secara cepat: CPU, RAM, Disk, Suhu CPU, Uptime, Internet, Firewall, Windows Update, dan proses terberat. Tiap komponen diberi status Baik/Sedang/Buruk, lalu dihitung skor keseluruhan dan disimpan otomatis ke Desktop sebagai SystemHealthReport.html.
 
